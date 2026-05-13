@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+{% set body_class = "shop-body" %}
+{% set title = "Russian Market" %}
+
+{% block content %}
+<main class="phone-shell">
+  <header class="shop-header">
+    <div class="brand-line">
+      <div class="brand-mark" aria-hidden="true">
+        <span></span>
+      </div>
+      <div>
+        <strong>Russian Market</strong>
+        <small>{{ user.profile_name or user.username }}</small>
+        <small class="user-public-id">{{ user.public_id }}</small>
+      </div>
+    </div>
+
+    <div class="action-row">
+      <span class="balance-pill"><span>Balance</span><strong>{{ user.balance | money }}</strong></span>
+      <button class="deposit-pill" type="button" data-open-modal="depositModal">
+        <span class="mini-card-icon"></span>
+        Deposit
+      </button>
+      <a class="help-bubble" href="mailto:{{ helper_email }}" aria-label="Help" title="{{ helper_email }}">
+        <span></span>
+      </a>
+      <form method="post" action="{{ url_for('logout') }}">
+        <button class="logout-button" type="submit">Logout</button>
+      </form>
+    </div>
+  </header>
+
+  <nav class="app-tabs" aria-label="User sections">
+    <button class="active" type="button" data-section-tab="cards">Cards</button>
+    <button type="button" data-section-tab="cart">Cart <span data-cart-count>0</span></button>
+    <button type="button" data-section-tab="mycards">My Cards</button>
+    <button type="button" data-section-tab="deposits">Deposit History</button>
+    <button type="button" data-section-tab="custom">Custom Order</button>
+  </nav>
+
+  <section class="section-block user-section active" data-user-section="cards">
+    <div class="section-title">
+      <span class="shop-icon"></span>
+      <h1>Card Shop</h1>
+    </div>
+    <p class="stock-line">
+      <span></span>
+      In Stock ({{ cards | selectattr("status", "equalto", "in_stock") | list | length }} cards)
+    </p>
+
+    <div class="card-tools">
+      <input type="search" placeholder="Search country, city, network" data-card-search>
+      <div class="network-tabs">
+        <button class="active" type="button" data-network-filter="all">All</button>
+        {% for network in networks %}
+          <button type="button" data-network-filter="{{ network | network_slug }}">{{ network }}</button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="card-list">
+      {% for card in cards %}
+        {% set available = card.status == "in_stock" %}
+        {% set can_buy = available and (user.balance | float) >= (card.price | float) %}
+        <article
+          class="market-card"
+          data-card
+          data-card-id="{{ card.id }}"
+          data-title="{{ card.country }} {{ card.city }} {{ card.network }}"
+          data-network="{{ card.network | network_slug }}"
+          data-network-name="{{ card.network }}"
+          data-country="{{ card.country }}"
+          data-price="{{ card.price }}"
+        >
+          <span class="stock-pill {{ 'is-muted' if not available else '' }}">
+            {% if card.status == "upcoming" %}Upcoming{% elif available %}In Stock{% else %}Hidden{% endif %}
+          </span>
+
+          <div class="country-line">
+            <span class="flag flag-{{ card.country_code|lower }}"></span>
+            <h2>{{ card.country }}</h2>
+          </div>
+
+          <div class="network-chip network-{{ card.network | network_slug }}">
+            <span></span>
+            {{ card.network }}
+          </div>
+
+          {% if card.has_image_data %}
+            <img class="card-art" loading="lazy" src="{{ url_for('card_image', card_id=card.id) }}" alt="{{ card.country }} card">
+          {% elif card.image_filename %}
+            <img class="card-art" src="{{ url_for('static', filename='uploads/' ~ card.image_filename) }}" alt="{{ card.country }} card">
+          {% endif %}
+
+          <div class="price-line">{{ card.price | money }}</div>
+
+          <div class="preload-row">
+            <span>Preload:</span>
+            <strong>{{ card.preload | money }}</strong>
+          </div>
+
+          <div class="location-line">
+            <span class="pin-icon"></span>
+            {{ card.city }}
+          </div>
+
+          <div class="number-strip">
+            <span>{{ card.masked_number }}</span>
+            <span>Exp: {{ card.expiry }}</span>
+          </div>
+
+          <div class="stock-count">{{ card.shown_stock }} ready stock</div>
+
+          <form class="add-cart-form">
+            <label class="qty-label">
+              <span>Qty</span>
+              <input type="number" min="1" max="20" value="1" data-card-qty>
+            </label>
+            <button
+              class="purchase-button {{ '' if can_buy else 'disabled' }}"
+              type="button"
+              data-add-cart
+              {% if not can_buy %}disabled{% endif %}
+            >
+              {% if not available %}
+                Not available
+              {% elif can_buy %}
+                Add Cart
+              {% else %}
+                Insufficient
+              {% endif %}
+            </button>
+          </form>
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="section-block compact-section user-section" data-user-section="cart">
+    <div class="section-title">
+      <span class="owned-icon"></span>
+      <h2>Cart</h2>
+    </div>
+    <div class="cart-list" data-cart-list></div>
+    <p class="empty-text" data-cart-empty>Your cart is empty.</p>
+  </section>
+
+  <section class="section-block compact-section user-section" data-user-section="mycards">
+    <div class="section-title">
+      <span class="owned-icon"></span>
+      <h2>My Cards</h2>
+    </div>
+
+    {% if orders %}
+      <div class="history-list">
+        {% for order in orders %}
+          <article class="history-item">
+            <div>
+              <strong>{{ order.country }} {{ order.network }}</strong>
+              <span>{{ order.price | money }} - Qty {{ order.quantity }} - {% if order.status == "pending" %}In Process{% elif order.status == "approved" %}Approved{% else %}Unsuccessful Order{% endif %}</span>
+            </div>
+            {% if order.status == "approved" %}
+              <pre>{{ order.view_details }}</pre>
+            {% elif order.status == "rejected" %}
+              <form method="post" action="{{ url_for('user_delete_order', order_id=order.id) }}">
+                <button class="danger-button compact" type="submit">Delete</button>
+              </form>
+            {% else %}
+              <p>In Process</p>
+            {% endif %}
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="empty-text">No purchased cards yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="section-block compact-section user-section" data-user-section="deposits">
+    <div class="section-title">
+      <span class="deposit-history-icon"></span>
+      <h2>Deposit History</h2>
+    </div>
+
+    {% if deposits %}
+      <div class="history-list">
+        {% for deposit in deposits %}
+          <article class="history-item slim">
+            <strong>{{ deposit.currency }} {{ deposit.amount | money }}</strong>
+            <span>
+              {% if deposit.status == "approved" %}
+                Successfully Deposit
+              {% elif deposit.status == "rejected" %}
+                Unsuccessful Deposit
+              {% else %}
+                In Process
+              {% endif %}
+            </span>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="empty-text">No deposit submitted yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="section-block compact-section user-section" data-user-section="custom">
+    <div class="section-title">
+      <span class="shop-icon"></span>
+      <h2>Custom Card Order</h2>
+    </div>
+    <form class="custom-order-form" method="post" action="{{ url_for('custom_order') }}">
+      <input name="card_type" list="cardTypeOptions" placeholder="Visa, Mastercard, Debit Card" required>
+      <datalist id="cardTypeOptions">
+        {% for network in networks %}
+          <option value="{{ network }}">
+        {% endfor %}
+        <option value="Debit Card">
+        <option value="Credit Card">
+      </datalist>
+      <input name="country" placeholder="Country / region">
+      <input name="quantity" type="number" min="1" max="100" value="1">
+      <input name="budget" type="number" min="0" step="0.01" placeholder="Budget">
+      <textarea name="notes" placeholder="Details you need"></textarea>
+      <button class="gradient-button" type="submit">Submit Custom Order</button>
+    </form>
+
+    {% if custom_orders %}
+      <div class="history-list">
+        {% for custom in custom_orders %}
+          <article class="history-item slim">
+            <strong>{{ custom.card_type }} x{{ custom.quantity }} - {% if custom.status == "pending" %}In Process{% elif custom.status == "approved" %}Approved{% else %}Rejected{% endif %}</strong>
+            <span>{{ custom.country }} - {{ custom.budget | money }}</span>
+            {% if custom.status == "rejected" %}
+              <form method="post" action="{{ url_for('user_delete_custom_order', custom_order_id=custom.id) }}">
+                <button class="danger-button compact" type="submit">Delete</button>
+              </form>
+            {% endif %}
+          </article>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </section>
+</main>
+
+<div class="modal-backdrop is-hidden" id="depositModal" role="dialog" aria-modal="true" aria-labelledby="depositTitle">
+  <section class="deposit-modal">
+    <button class="modal-close" type="button" data-close-modal="depositModal" aria-label="Close">x</button>
+    <h2 id="depositTitle">
+      <span class="deposit-title-icon"></span>
+      Deposit Cryptocurrency
+    </h2>
+    <p>Send to any address below, then submit your transaction ID.</p>
+
+    <div class="address-list">
+      {% for address in addresses %}
+        <article class="address-card">
+          <div>
+            <strong>{{ address.currency }}</strong>
+            <span>({{ address.network }})</span>
+          </div>
+          <code>{{ address.address }}</code>
+          <button type="button" data-copy="{{ address.address }}">Copy</button>
+        </article>
+      {% endfor %}
+    </div>
+
+    <form class="deposit-form" method="post" action="{{ url_for('create_deposit') }}">
+      <label>
+        <span>Currency</span>
+        <select name="currency" required>
+          {% for address in addresses %}
+            <option value="{{ address.currency }}">{{ address.currency }} ({{ address.network }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Amount</span>
+        <input name="amount" type="number" min="1" step="0.01" placeholder="Enter amount" required>
+      </label>
+      <label>
+        <span>Transaction ID / Hash</span>
+        <input name="txid" type="text" placeholder="Paste Transaction ID / Hash" required>
+      </label>
+      <button class="gradient-button" type="submit">Submit Payment</button>
+    </form>
+
+    <p class="modal-note">Balance updates after manual confirmation, usually 10-30 min.</p>
+  </section>
+</div>
+{% endblock %}
