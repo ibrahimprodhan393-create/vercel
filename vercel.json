@@ -2,6 +2,12 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": null,
   "devCommand": "python app.py",
+  "rewrites": [
+    {
+      "source": "/:path((?!static/).*)",
+      "destination": "/api/index"
+    }
+  ],
   "headers": [
     {
       "source": "/static/(.*)",
