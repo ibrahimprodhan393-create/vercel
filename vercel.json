@@ -2,11 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": null,
   "devCommand": "python app.py",
-  "functions": {
-    "app.py": {
-      "excludeFiles": "{.venv/**,reference/**,__pycache__/**,*.db,*.zip}"
-    }
-  },
   "headers": [
     {
       "source": "/static/(.*)",
