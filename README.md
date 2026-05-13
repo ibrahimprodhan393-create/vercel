@@ -83,6 +83,8 @@ Environment variables to set in Vercel:
 
 Use Neon Postgres for `DATABASE_URL`. SQLite is only for local testing and should not be used for Vercel production data.
 
+After deployment, open `/health` on your Vercel domain. If it says `ok: false`, the page will show the database error instead of crashing. Most Vercel 500 errors here are caused by a missing or wrong `DATABASE_URL`.
+
 ## Neon SQL
 
 The app creates and updates tables automatically on startup. If you want to prepare Neon manually, open Neon SQL Editor and run:

@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import tempfile
 import uuid
 from contextlib import contextmanager
 
@@ -8,10 +9,12 @@ from werkzeug.security import generate_password_hash
 
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 HASH_METHOD = "pbkdf2:sha256:180000"
-SQLITE_PATH = os.getenv(
-    "SQLITE_PATH",
-    os.path.join(os.path.dirname(__file__), "russian_market.db"),
+DEFAULT_SQLITE_PATH = (
+    os.path.join(tempfile.gettempdir(), "russian_market.db")
+    if os.getenv("VERCEL") and not DATABASE_URL
+    else os.path.join(os.path.dirname(__file__), "russian_market.db")
 )
+SQLITE_PATH = os.getenv("SQLITE_PATH", DEFAULT_SQLITE_PATH)
 
 
 def using_postgres():
@@ -29,7 +32,7 @@ def _connect():
         from psycopg import connect
         from psycopg.rows import dict_row
 
-        return connect(DATABASE_URL, row_factory=dict_row)
+        return connect(DATABASE_URL, row_factory=dict_row, connect_timeout=5)
 
     conn = sqlite3.connect(SQLITE_PATH)
     conn.row_factory = sqlite3.Row

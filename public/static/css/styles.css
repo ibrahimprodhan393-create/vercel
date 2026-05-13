@@ -268,6 +268,37 @@ a {
   font-weight: 600;
 }
 
+.setup-card {
+  max-width: 560px;
+}
+
+.setup-text {
+  color: #4c5466;
+  font-size: 15px;
+  line-height: 1.55;
+  text-align: center;
+}
+
+.setup-box {
+  display: grid;
+  gap: 8px;
+  margin: 18px 0;
+  border-radius: 14px;
+  background: #f5f7fb;
+  padding: 14px;
+}
+
+.setup-box strong {
+  color: #1b2133;
+  font-size: 13px;
+}
+
+.setup-box code {
+  overflow-wrap: anywhere;
+  color: #d73745;
+  font-size: 12px;
+}
+
 .shop-body {
   min-height: 100vh;
   background: linear-gradient(180deg, #f7f0f5 0%, #ecf3fb 38%, #e8eff7 100%);

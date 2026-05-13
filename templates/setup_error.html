@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% set body_class = "login-body" %}
+{% set title = "Database Setup Required" %}
+
+{% block content %}
+<main class="login-screen">
+  <section class="login-card setup-card">
+    <h1>Database Setup Required</h1>
+    <p class="setup-text">
+      The site is deployed, but the database connection is not ready yet.
+    </p>
+
+    <div class="setup-box">
+      <strong>Current error</strong>
+      <code>{{ error }}</code>
+    </div>
+
+    {% if is_vercel and not has_database_url %}
+      <p class="setup-text">
+        Add your Neon pooled connection string in Vercel Environment Variables as
+        <strong>DATABASE_URL</strong>, then redeploy.
+      </p>
+    {% else %}
+      <p class="setup-text">
+        Check the <strong>DATABASE_URL</strong> value, Neon password, and SSL mode, then redeploy.
+      </p>
+    {% endif %}
+  </section>
+</main>
+{% endblock %}

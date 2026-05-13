@@ -38,7 +38,38 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "change-this-secret-key")
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-init_db()
+DB_INIT_ERROR = None
+
+
+def ensure_database_ready():
+    global DB_INIT_ERROR
+    try:
+        init_db()
+        DB_INIT_ERROR = None
+        return True
+    except Exception as exc:
+        DB_INIT_ERROR = f"{type(exc).__name__}: {exc}"
+        return False
+
+
+ensure_database_ready()
+
+
+@app.before_request
+def block_when_database_unavailable():
+    if request.endpoint in {"static", "health"} or request.path.startswith("/static/"):
+        return None
+    if DB_INIT_ERROR and not ensure_database_ready():
+        return (
+            render_template(
+                "setup_error.html",
+                error=DB_INIT_ERROR,
+                has_database_url=bool(os.getenv("DATABASE_URL", "").strip()),
+                is_vercel=bool(os.getenv("VERCEL")),
+            ),
+            500,
+        )
+    return None
 
 
 def money_value(value):
@@ -122,8 +153,14 @@ def admin_required(view):
 
 @app.context_processor
 def inject_globals():
+    safe_user = None
+    if not DB_INIT_ERROR:
+        try:
+            safe_user = current_user()
+        except Exception:
+            safe_user = None
     return {
-        "current_user": current_user(),
+        "current_user": safe_user,
         "app_name": "Russian Market",
         "db_label": "Neon Postgres" if using_postgres() else "SQLite local",
     }
@@ -154,6 +191,22 @@ def generate_public_id():
         public_id = "RM" + uuid.uuid4().hex[:8].upper()
         if not query_one("SELECT id FROM users WHERE public_id = ?", (public_id,)):
             return public_id
+
+
+@app.get("/health")
+def health():
+    return (
+        jsonify(
+            {
+                "ok": DB_INIT_ERROR is None,
+                "database": "neon" if using_postgres() else "sqlite",
+                "error": DB_INIT_ERROR,
+                "has_database_url": bool(os.getenv("DATABASE_URL", "").strip()),
+                "vercel": bool(os.getenv("VERCEL")),
+            }
+        ),
+        200 if DB_INIT_ERROR is None else 500,
+    )
 
 
 @app.route("/", methods=["GET", "POST"])
