@@ -32,7 +32,7 @@ def _connect():
         from psycopg import connect
         from psycopg.rows import dict_row
 
-        return connect(DATABASE_URL, row_factory=dict_row, connect_timeout=5)
+        return connect(DATABASE_URL, row_factory=dict_row, connect_timeout=2)
 
     conn = sqlite3.connect(SQLITE_PATH)
     conn.row_factory = sqlite3.Row

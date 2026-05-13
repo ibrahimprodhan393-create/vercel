@@ -37,29 +37,34 @@ HASH_METHOD = "pbkdf2:sha256:180000"
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "change-this-secret-key")
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+try:
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+except OSError:
+    pass
 DB_INIT_ERROR = None
+DB_READY = False
 
 
 def ensure_database_ready():
-    global DB_INIT_ERROR
+    global DB_INIT_ERROR, DB_READY
+    if DB_READY:
+        return True
     try:
         init_db()
         DB_INIT_ERROR = None
+        DB_READY = True
         return True
     except Exception as exc:
         DB_INIT_ERROR = f"{type(exc).__name__}: {exc}"
+        DB_READY = False
         return False
-
-
-ensure_database_ready()
 
 
 @app.before_request
 def block_when_database_unavailable():
     if request.endpoint in {"static", "health"} or request.path.startswith("/static/"):
         return None
-    if DB_INIT_ERROR and not ensure_database_ready():
+    if not DB_READY and not ensure_database_ready():
         return (
             render_template(
                 "setup_error.html",
@@ -154,7 +159,7 @@ def admin_required(view):
 @app.context_processor
 def inject_globals():
     safe_user = None
-    if not DB_INIT_ERROR:
+    if DB_READY and not DB_INIT_ERROR:
         try:
             safe_user = current_user()
         except Exception:
@@ -195,17 +200,20 @@ def generate_public_id():
 
 @app.get("/health")
 def health():
+    if request.args.get("check") == "1":
+        ensure_database_ready()
     return (
         jsonify(
             {
-                "ok": DB_INIT_ERROR is None,
+                "ok": DB_READY and DB_INIT_ERROR is None,
                 "database": "neon" if using_postgres() else "sqlite",
                 "error": DB_INIT_ERROR,
+                "ready": DB_READY,
                 "has_database_url": bool(os.getenv("DATABASE_URL", "").strip()),
                 "vercel": bool(os.getenv("VERCEL")),
             }
         ),
-        200 if DB_INIT_ERROR is None else 500,
+        200 if DB_READY and DB_INIT_ERROR is None else 503,
     )
 
 
