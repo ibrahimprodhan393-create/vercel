@@ -198,6 +198,36 @@ def generate_public_id():
             return public_id
 
 
+def status_count(table, user_id, status):
+    return query_one(
+        f"SELECT COUNT(*) AS count FROM {table} WHERE user_id = ? AND status = ?",
+        (user_id, status),
+    )["count"]
+
+
+def state_stamp(table, user_id=None):
+    stamp_expr = "COALESCE(approved_at, created_at)" if table == "orders" else "COALESCE(reviewed_at, created_at)"
+    if user_id is None:
+        return query_one(
+            f"""
+            SELECT COUNT(*) AS count,
+                   COALESCE(MAX(id), 0) AS max_id,
+                   COALESCE(MAX(CAST({stamp_expr} AS TEXT)), '') AS stamp
+            FROM {table}
+            """
+        )
+    return query_one(
+        f"""
+        SELECT COUNT(*) AS count,
+               COALESCE(MAX(id), 0) AS max_id,
+               COALESCE(MAX(CAST({stamp_expr} AS TEXT)), '') AS stamp
+        FROM {table}
+        WHERE user_id = ?
+        """,
+        (user_id,),
+    )
+
+
 @app.get("/health")
 def health():
     if request.args.get("check") == "1":
@@ -761,7 +791,8 @@ def admin_update_card(card_id):
         UPDATE cards
         SET country = ?, country_code = ?, network = ?, price = ?, preload = ?,
             city = ?, masked_number = ?, expiry = ?, full_details = ?, display_stock = ?,
-            status = ?, image_filename = ?, image_mime = ?, image_data = ?
+            status = ?, image_filename = ?, image_mime = ?, image_data = ?,
+            updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
         """,
         (
@@ -1016,29 +1047,52 @@ def admin_delete_custom_order(custom_order_id):
 @login_required
 def api_user_status():
     user = current_user()
-    order_state = query_one(
-        "SELECT COUNT(*) AS count, COALESCE(MAX(id), 0) AS max_id FROM orders WHERE user_id = ?",
-        (user["id"],),
+    order_state = state_stamp("orders", user["id"])
+    deposit_state = state_stamp("deposits", user["id"])
+    custom_state = state_stamp("custom_orders", user["id"])
+    card_state = query_one(
+        """
+        SELECT COUNT(*) AS count,
+               COALESCE(MAX(id), 0) AS max_id,
+               COALESCE(MAX(CAST(COALESCE(updated_at, created_at) AS TEXT)), '') AS stamp
+        FROM cards
+        WHERE status != 'hidden'
+        """
     )
-    deposit_state = query_one(
-        "SELECT COUNT(*) AS count, COALESCE(MAX(id), 0) AS max_id FROM deposits WHERE user_id = ?",
-        (user["id"],),
+    stock_state = query_one(
+        "SELECT COUNT(*) AS count, COALESCE(MAX(id), 0) AS max_id FROM card_stock WHERE status = 'available'"
     )
-    pending_state = query_one(
-        "SELECT COUNT(*) AS count FROM orders WHERE user_id = ? AND status = 'pending'",
-        (user["id"],),
+    address_state = query_one(
+        """
+        SELECT COUNT(*) AS count,
+               COALESCE(MAX(id), 0) AS max_id,
+               COALESCE(MAX(CAST(updated_at AS TEXT)), '') AS stamp
+        FROM crypto_addresses
+        """
     )
-    deposit_pending_state = query_one(
-        "SELECT COUNT(*) AS count FROM deposits WHERE user_id = ? AND status = 'pending'",
-        (user["id"],),
-    )
-    custom_state = query_one(
-        "SELECT COUNT(*) AS count, COALESCE(MAX(id), 0) AS max_id FROM custom_orders WHERE user_id = ?",
-        (user["id"],),
+    settings_state = query_one(
+        "SELECT COUNT(*) AS count, COALESCE(MAX(value), '') AS stamp FROM site_settings"
     )
     return jsonify(
         {
-            "version": f"{user['balance']}:{order_state['count']}:{order_state['max_id']}:{deposit_state['count']}:{deposit_state['max_id']}:{pending_state['count']}:{deposit_pending_state['count']}:{custom_state['count']}:{custom_state['max_id']}",
+            "version": ":".join(
+                [
+                    str(user["balance"]),
+                    f"o{order_state['count']}-{order_state['max_id']}-{order_state['stamp']}",
+                    f"op{status_count('orders', user['id'], 'pending')}",
+                    f"oa{status_count('orders', user['id'], 'approved')}",
+                    f"or{status_count('orders', user['id'], 'rejected')}",
+                    f"d{deposit_state['count']}-{deposit_state['max_id']}-{deposit_state['stamp']}",
+                    f"dp{status_count('deposits', user['id'], 'pending')}",
+                    f"da{status_count('deposits', user['id'], 'approved')}",
+                    f"dr{status_count('deposits', user['id'], 'rejected')}",
+                    f"c{custom_state['count']}-{custom_state['max_id']}-{custom_state['stamp']}",
+                    f"cards{card_state['count']}-{card_state['max_id']}-{card_state['stamp']}",
+                    f"stock{stock_state['count']}-{stock_state['max_id']}",
+                    f"addr{address_state['count']}-{address_state['max_id']}-{address_state['stamp']}",
+                    f"set{settings_state['count']}-{settings_state['stamp']}",
+                ]
+            ),
             "balance": str(user["balance"]),
         }
     )
@@ -1047,6 +1101,28 @@ def api_user_status():
 @app.get("/api/admin/status")
 @admin_required
 def api_admin_status():
+    card_state = query_one(
+        """
+        SELECT COUNT(*) AS count,
+               COALESCE(MAX(id), 0) AS max_id,
+               COALESCE(MAX(CAST(COALESCE(updated_at, created_at) AS TEXT)), '') AS stamp
+        FROM cards
+        """
+    )
+    stock_state = query_one(
+        "SELECT COUNT(*) AS count, COALESCE(MAX(id), 0) AS max_id FROM card_stock"
+    )
+    address_state = query_one(
+        """
+        SELECT COUNT(*) AS count,
+               COALESCE(MAX(id), 0) AS max_id,
+               COALESCE(MAX(CAST(updated_at AS TEXT)), '') AS stamp
+        FROM crypto_addresses
+        """
+    )
+    settings_state = query_one(
+        "SELECT COUNT(*) AS count, COALESCE(MAX(value), '') AS stamp FROM site_settings"
+    )
     state = {
         "deposits": query_one("SELECT COUNT(*) AS count, COALESCE(MAX(id), 0) AS max_id FROM deposits WHERE status = 'pending'"),
         "orders": query_one("SELECT COUNT(*) AS count, COALESCE(MAX(id), 0) AS max_id FROM orders WHERE status = 'pending'"),
@@ -1054,11 +1130,18 @@ def api_admin_status():
         "users": query_one("SELECT COUNT(*) AS count, COALESCE(MAX(id), 0) AS max_id FROM users"),
         "all_orders": query_one("SELECT COUNT(*) AS count, COALESCE(MAX(id), 0) AS max_id FROM orders"),
         "all_deposits": query_one("SELECT COUNT(*) AS count, COALESCE(MAX(id), 0) AS max_id FROM deposits"),
+        "cards": card_state,
+        "stock": stock_state,
+        "addresses": address_state,
+        "settings": {"count": settings_state["count"], "max_id": 0, "stamp": settings_state["stamp"]},
+        "order_stamp": state_stamp("orders"),
+        "deposit_stamp": state_stamp("deposits"),
+        "custom_stamp": state_stamp("custom_orders"),
     }
     return jsonify(
         {
             "version": ":".join(
-                f"{key}-{value['count']}-{value['max_id']}" for key, value in state.items()
+                f"{key}-{value['count']}-{value['max_id']}-{value.get('stamp', '')}" for key, value in state.items()
             )
         }
     )

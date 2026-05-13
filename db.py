@@ -133,7 +133,8 @@ def init_db():
                     image_filename TEXT,
                     image_mime TEXT,
                     image_data TEXT,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """,
                 """
@@ -236,7 +237,8 @@ def init_db():
                     image_filename TEXT,
                     image_mime TEXT,
                     image_data TEXT,
-                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """,
                 """
@@ -375,6 +377,7 @@ def ensure_card_image_columns():
         "image_mime": "TEXT",
         "image_data": "TEXT",
         "display_stock": "INTEGER NOT NULL DEFAULT 0",
+        "updated_at": "TEXT",
     }
     with connection() as conn:
         cur = conn.cursor()
@@ -394,6 +397,8 @@ def ensure_card_image_columns():
         for column, column_type in wanted.items():
             if column not in columns:
                 cur.execute(f"ALTER TABLE cards ADD COLUMN {column} {column_type}")
+                if column == "updated_at":
+                    cur.execute("UPDATE cards SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL")
 
 
 def ensure_order_columns():

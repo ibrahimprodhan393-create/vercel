@@ -29,6 +29,14 @@ body {
   letter-spacing: 0;
 }
 
+.login-body,
+.shop-body,
+.admin-body {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+}
+
 button,
 input,
 select,
@@ -38,6 +46,15 @@ textarea {
 
 button {
   cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+}
+
+button:disabled:hover {
+  transform: none;
 }
 
 a {
@@ -96,7 +113,8 @@ a {
 
 .login-screen {
   display: grid;
-  min-height: 100vh;
+  flex: 1;
+  min-height: calc(100vh - 58px);
   align-items: start;
   justify-items: center;
   padding: 56px 14px 28px;
@@ -305,6 +323,7 @@ a {
 }
 
 .phone-shell {
+  flex: 1;
   width: min(100%, 430px);
   margin: 0 auto;
   padding: 26px 14px 38px;
@@ -314,8 +333,12 @@ a {
 .admin-header {
   display: grid;
   gap: 16px;
-  padding: 4px 6px 22px;
-  border-bottom: 1px solid rgba(18, 24, 42, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.68);
+  padding: 16px;
+  box-shadow: 0 16px 38px rgba(58, 70, 110, 0.11);
+  backdrop-filter: blur(16px);
 }
 
 .brand-line {
@@ -522,7 +545,7 @@ a {
   display: flex;
   gap: 8px;
   overflow-x: auto;
-  padding: 14px 2px 4px;
+  padding: 16px 2px 6px;
   scrollbar-width: thin;
 }
 
@@ -677,10 +700,11 @@ a {
 .market-card {
   position: relative;
   overflow: hidden;
-  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 20px;
   background: var(--panel);
   padding: 22px 22px 20px;
-  box-shadow: 0 18px 42px rgba(45, 53, 82, 0.12);
+  box-shadow: 0 18px 42px rgba(45, 53, 82, 0.13);
 }
 
 .stock-pill {
@@ -985,6 +1009,79 @@ a {
   gap: 7px;
 }
 
+.confirm-modal {
+  width: min(calc(100vw - 32px), 380px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 24px;
+  background: #fff;
+  padding: 24px;
+  text-align: center;
+  box-shadow: 0 30px 80px rgba(14, 19, 32, 0.26);
+}
+
+.confirm-icon {
+  position: relative;
+  width: 58px;
+  height: 42px;
+  margin: 0 auto 14px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #172033, #2b334b);
+  box-shadow: inset 0 -10px 0 rgba(255, 255, 255, 0.08);
+}
+
+.confirm-icon::before,
+.confirm-icon::after {
+  position: absolute;
+  content: "";
+}
+
+.confirm-icon::before {
+  top: 12px;
+  left: 9px;
+  width: 16px;
+  height: 11px;
+  border-radius: 3px;
+  background: linear-gradient(135deg, #f3d68a, #fff1b8);
+}
+
+.confirm-icon::after {
+  right: -5px;
+  bottom: -5px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #17b969, #0f8d50);
+  box-shadow: inset 0 0 0 5px rgba(255, 255, 255, 0.9);
+}
+
+.confirm-modal h2 {
+  margin: 0;
+  color: #111629;
+  font-size: 22px;
+}
+
+.confirm-modal p {
+  margin: 9px 0 20px;
+  color: #5e6678;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.ghost-button {
+  min-height: 48px;
+  border: 1px solid #dfe4ee;
+  border-radius: 999px;
+  background: #f6f8fc;
+  color: #30364a;
+  font-weight: 900;
+}
+
 .icon-button {
   min-height: 36px;
   border: 0;
@@ -1078,6 +1175,11 @@ a {
 
 .modal-backdrop.is-hidden {
   display: none;
+}
+
+#purchaseConfirmModal {
+  align-items: center;
+  padding: 20px;
 }
 
 .deposit-modal {
@@ -1239,6 +1341,7 @@ a {
 }
 
 .admin-shell {
+  flex: 1;
   width: min(1180px, calc(100% - 28px));
   margin: 0 auto;
   padding: 24px 0 44px;
@@ -1247,8 +1350,7 @@ a {
 .admin-header {
   grid-template-columns: 1fr auto;
   align-items: center;
-  border: 0;
-  padding: 0 0 18px;
+  padding: 16px;
 }
 
 .admin-stats {
@@ -1414,11 +1516,14 @@ a {
 .site-footer {
   width: min(100%, 430px);
   margin: 0 auto;
-  padding: 0 14px 22px;
-  color: #697184;
+  border-top: 1px solid rgba(20, 25, 42, 0.08);
+  padding: 18px 14px 22px;
+  color: #5c6578;
   text-align: center;
-  font-size: 12px;
-  font-weight: 800;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .admin-body .site-footer {

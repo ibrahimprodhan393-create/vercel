@@ -1,6 +1,7 @@
 (() => {
   const body = document.body;
   const cartKey = "russian-market-cart";
+  let pendingPurchase = null;
 
   const savedTheme = localStorage.getItem("russian-market-theme");
   if (savedTheme === "dark") {
@@ -60,11 +61,25 @@
       const id = buyCart.dataset.buyCart;
       const item = getCart().find((entry) => entry.id === id);
       if (!item) return;
-      if (!window.confirm("Confirm purchase?")) {
-        return;
-      }
-      saveCart(getCart().filter((entry) => entry.id !== id));
+      openPurchaseConfirm(item);
+      return;
+    }
+
+    const confirmBuy = event.target.closest("[data-confirm-buy]");
+    if (confirmBuy && pendingPurchase) {
+      const item = pendingPurchase;
+      pendingPurchase = null;
+      saveCart(getCart().filter((entry) => entry.id !== item.id));
+      renderCart();
+      closePurchaseConfirm();
       submitPurchase(item);
+      return;
+    }
+
+    const cancelBuy = event.target.closest("[data-cancel-buy]");
+    if (cancelBuy) {
+      pendingPurchase = null;
+      closePurchaseConfirm();
       return;
     }
 
@@ -90,6 +105,9 @@
       ? event.target
       : null;
     if (modalBackdrop) {
+      if (modalBackdrop.id === "purchaseConfirmModal") {
+        pendingPurchase = null;
+      }
       modalBackdrop.classList.add("is-hidden");
       return;
     }
@@ -262,7 +280,6 @@
     const check = async () => {
       if (document.hidden) return;
       if (document.querySelector(".modal-backdrop:not(.is-hidden)")) return;
-      if (document.activeElement && ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) return;
       try {
         const response = await fetch(endpoint, { cache: "no-store" });
         if (!response.ok) return;
@@ -277,7 +294,44 @@
       }
     };
     await check();
-    setInterval(check, 4000);
+    setInterval(check, 2500);
+  }
+
+  function ensurePurchaseConfirmModal() {
+    let modal = document.getElementById("purchaseConfirmModal");
+    if (modal) return modal;
+    modal = document.createElement("div");
+    modal.id = "purchaseConfirmModal";
+    modal.className = "modal-backdrop is-hidden";
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    modal.innerHTML = `
+      <section class="confirm-modal">
+        <div class="confirm-icon" aria-hidden="true"></div>
+        <h2>Confirm Purchase</h2>
+        <p data-confirm-copy>Please review this order before confirming.</p>
+        <div class="confirm-actions">
+          <button class="ghost-button" type="button" data-cancel-buy>Cancel</button>
+          <button class="gradient-button" type="button" data-confirm-buy>Confirm</button>
+        </div>
+      </section>
+    `;
+    document.body.appendChild(modal);
+    return modal;
+  }
+
+  function openPurchaseConfirm(item) {
+    pendingPurchase = item;
+    const modal = ensurePurchaseConfirmModal();
+    const copy = modal.querySelector("[data-confirm-copy]");
+    if (copy) {
+      copy.textContent = `${item.country} ${item.network} - Qty ${item.quantity} - $${(item.price * item.quantity).toFixed(2)}`;
+    }
+    modal.classList.remove("is-hidden");
+  }
+
+  function closePurchaseConfirm() {
+    document.getElementById("purchaseConfirmModal")?.classList.add("is-hidden");
   }
 
   renderCart();
