@@ -72,7 +72,7 @@ Vercel settings:
 - Build Command: leave empty / override
 - Output Directory: leave empty
 
-This repo includes `vercel.json`, which disables a custom build command and lets Vercel deploy the Flask `app` instance from `app.py` as a Python function.
+This repo includes `vercel.json`, which disables a custom build command. Vercel deploys the Flask `app` instance from root `app.py` automatically; do not add an `app.py` entry under `functions`, because Vercel only accepts `functions` patterns for files inside the `api` directory.
 
 Environment variables to set in Vercel:
 
