@@ -33,6 +33,25 @@ from db import connection, execute, init_db, insert, query_all, query_one, using
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp", "gif"}
 HASH_METHOD = "pbkdf2:sha256:180000"
+ASSET_VERSION = "20260514-professional-3"
+COUNTRY_OPTIONS = [
+    ("us", "United States"), ("ca", "Canada"), ("gb", "United Kingdom"),
+    ("de", "Germany"), ("fr", "France"), ("it", "Italy"), ("es", "Spain"),
+    ("nl", "Netherlands"), ("be", "Belgium"), ("ch", "Switzerland"),
+    ("se", "Sweden"), ("no", "Norway"), ("dk", "Denmark"), ("fi", "Finland"),
+    ("ie", "Ireland"), ("pt", "Portugal"), ("at", "Austria"), ("pl", "Poland"),
+    ("cz", "Czech Republic"), ("hu", "Hungary"), ("ro", "Romania"), ("bg", "Bulgaria"),
+    ("gr", "Greece"), ("tr", "Turkey"), ("ru", "Russia"), ("ua", "Ukraine"),
+    ("ae", "United Arab Emirates"), ("sa", "Saudi Arabia"), ("qa", "Qatar"),
+    ("kw", "Kuwait"), ("bh", "Bahrain"), ("om", "Oman"), ("il", "Israel"),
+    ("in", "India"), ("bd", "Bangladesh"), ("pk", "Pakistan"), ("lk", "Sri Lanka"),
+    ("np", "Nepal"), ("cn", "China"), ("hk", "Hong Kong"), ("jp", "Japan"),
+    ("kr", "South Korea"), ("sg", "Singapore"), ("my", "Malaysia"), ("th", "Thailand"),
+    ("id", "Indonesia"), ("ph", "Philippines"), ("vn", "Vietnam"), ("au", "Australia"),
+    ("nz", "New Zealand"), ("br", "Brazil"), ("ar", "Argentina"), ("mx", "Mexico"),
+    ("cl", "Chile"), ("co", "Colombia"), ("pe", "Peru"), ("za", "South Africa"),
+    ("eg", "Egypt"), ("ng", "Nigeria"), ("ke", "Kenya"), ("ma", "Morocco"),
+]
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "change-this-secret-key")
@@ -77,6 +96,14 @@ def block_when_database_unavailable():
     return None
 
 
+@app.after_request
+def add_no_store_headers(response):
+    if request.path.startswith("/api/") or request.path == "/health":
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+    return response
+
+
 def money_value(value):
     try:
         amount = Decimal(str(value or 0))
@@ -108,6 +135,14 @@ def money(value):
 @app.template_filter("network_slug")
 def network_slug(value):
     return str(value or "").strip().lower().replace(" ", "-")
+
+
+@app.template_filter("flag_emoji")
+def flag_emoji(country_code):
+    code = str(country_code or "").strip().upper()
+    if len(code) != 2 or not code.isalpha():
+        return "🏳"
+    return "".join(chr(0x1F1E6 + ord(char) - ord("A")) for char in code)
 
 
 def allowed_file(filename):
@@ -167,6 +202,7 @@ def inject_globals():
     return {
         "current_user": safe_user,
         "app_name": "Russian Market",
+        "asset_version": ASSET_VERSION,
         "db_label": "Neon Postgres" if using_postgres() else "SQLite local",
     }
 
@@ -654,6 +690,7 @@ def admin_dashboard():
             """
         ),
         network_options=query_all("SELECT DISTINCT network FROM cards ORDER BY network"),
+        country_options=COUNTRY_OPTIONS,
         stock_rows=query_all(
             """
             SELECT card_stock.*, cards.country, cards.network
@@ -893,10 +930,35 @@ def admin_update_settings():
     return redirect(url_for("admin_dashboard"))
 
 
+@app.post("/admin/users/<int:user_id>/balance")
+@admin_required
+def admin_adjust_user_balance(user_id):
+    user = query_one("SELECT id FROM users WHERE id = ?", (user_id,))
+    if not user:
+        flash("User not found.", "error")
+        return redirect(url_for("admin_dashboard"))
+    amount = money_value(request.form.get("amount", "0"))
+    action = request.form.get("action", "add")
+    if amount <= 0:
+        flash("Enter a valid balance amount.", "error")
+        return redirect(url_for("admin_dashboard", q=request.form.get("q", "")))
+    if action == "subtract":
+        execute("UPDATE users SET balance = balance - ? WHERE id = ?", (str(amount), user_id))
+        flash("User balance reduced.", "success")
+    else:
+        execute("UPDATE users SET balance = balance + ? WHERE id = ?", (str(amount), user_id))
+        flash("User balance added.", "success")
+    return redirect(url_for("admin_dashboard", q=request.form.get("q", "")))
+
+
 @app.post("/admin/deposits/<int:deposit_id>/<action>")
 @admin_required
 def admin_review_deposit(deposit_id, action):
     deposit = query_one("SELECT * FROM deposits WHERE id = ?", (deposit_id,))
+    if action == "delete":
+        if deposit and deposit["status"] != "pending":
+            execute("DELETE FROM deposits WHERE id = ?", (deposit_id,))
+        return redirect(url_for("admin_dashboard"))
     if not deposit or deposit["status"] != "pending":
         flash("Deposit is not pending.", "error")
         return redirect(url_for("admin_dashboard"))

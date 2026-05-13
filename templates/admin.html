@@ -90,7 +90,12 @@
     </div>
     <form class="admin-card-form" method="post" action="{{ url_for('admin_add_card') }}" enctype="multipart/form-data">
       <input name="country" placeholder="USA" required>
-      <input name="country_code" placeholder="us" required>
+      <input name="country_code" list="countryCodeOptions" placeholder="Select/type country flag code" required>
+      <datalist id="countryCodeOptions">
+        {% for code, name in country_options %}
+          <option value="{{ code }}">{{ code | flag_emoji }} {{ name }} ({{ code|upper }})</option>
+        {% endfor %}
+      </datalist>
       <input name="network" list="networkOptions" placeholder="Visa / Debit Card" required>
       <datalist id="networkOptions">
         {% for option in network_options %}
@@ -119,7 +124,7 @@
           <summary><strong>#{{ card.id }} {{ card.country }} {{ card.network }}</strong><span>{{ card.status }} - {{ card.price | money }} - showing {{ card.shown_stock }} / real {{ card.available_stock }} stock</span></summary>
           <form class="admin-card-form edit" method="post" action="{{ url_for('admin_update_card', card_id=card.id) }}" enctype="multipart/form-data">
             <input name="country" value="{{ card.country }}" required>
-            <input name="country_code" value="{{ card.country_code }}" required>
+            <input name="country_code" list="countryCodeOptions" value="{{ card.country_code }}" required>
             <input name="network" list="networkOptions" value="{{ card.network }}" required>
             <input name="price" type="number" min="0" step="0.01" value="{{ card.price }}" required>
             <input name="preload" type="number" min="0" step="0.01" value="{{ card.preload }}" required>
@@ -169,6 +174,8 @@
           {% if deposit.status == "pending" %}
             <form method="post" action="{{ url_for('admin_review_deposit', deposit_id=deposit.id, action='approve') }}"><input name="amount" type="number" min="0" step="0.01" value="{{ deposit.amount }}"><button class="small-button" type="submit">Approve</button></form>
             <form method="post" action="{{ url_for('admin_review_deposit', deposit_id=deposit.id, action='reject') }}"><button class="danger-button" type="submit">Reject</button></form>
+          {% else %}
+            <form method="post" action="{{ url_for('admin_review_deposit', deposit_id=deposit.id, action='delete') }}"><button class="danger-button" type="submit">Delete</button></form>
           {% endif %}
         </article>
       {% endfor %}
@@ -222,6 +229,15 @@
           <summary><span>{{ user.id }}</span><span>{{ user.public_id }}</span><span>{{ user.username }}</span><span>{{ user.profile_name or user.username }}</span><span>{{ user.balance | money }}</span><span>{{ user.created_at }}</span></summary>
           {% set details = user_details.get(user.id) %}
           <div class="user-detail-grid">
+            <article>
+              <h3>Balance Control</h3>
+              <form class="balance-adjust-form" method="post" action="{{ url_for('admin_adjust_user_balance', user_id=user.id) }}">
+                <input type="hidden" name="q" value="{{ search_query }}">
+                <input name="amount" type="number" min="0.01" step="0.01" placeholder="Amount" required>
+                <button class="small-button" name="action" value="add" type="submit">Add</button>
+                <button class="danger-button" name="action" value="subtract" type="submit">Subtract</button>
+              </form>
+            </article>
             {% if details %}
               <article><h3>Deposits</h3>{% for deposit in details.deposits %}<p>{{ deposit.currency }} {{ deposit.amount | money }} - {{ deposit.status }}</p>{% endfor %}</article>
               <article><h3>Orders</h3>{% for order in details.orders %}<p>{{ order.country }} {{ order.network }} x{{ order.quantity }} - {{ order.status }}</p>{% endfor %}</article>
